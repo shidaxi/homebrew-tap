@@ -1,0 +1,167 @@
+name: Update formulas
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update formulas
+        run: |
+          set -uo pipefail
+          mkdir -p Formula
+
+          # Define projects: "repo binary_name formula_class description"
+          PROJECTS=(
+            "shidaxi/eth-watch eth-watch EthWatch Terminal dashboard for monitoring Ethereum RPC nodes"
+            "shidaxi/iaws iaws Iaws Interactive AWS CLI dashboard"
+          )
+
+          CHANGED=false
+
+          for PROJECT in "${PROJECTS[@]}"; do
+            read -r REPO BINARY CLASS DESC <<< "$PROJECT"
+            FORMULA="Formula/${BINARY}.rb"
+            echo "=== Processing ${REPO} ==="
+
+            # Get latest release info
+            RELEASE=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || {
+              echo "SKIP: failed to fetch release for ${REPO}"
+              continue
+            }
+
+            VERSION=$(echo "$RELEASE" | jq -r '.tag_name')
+            BARE_VERSION="${VERSION#v}"
+
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "SKIP: no release found for ${REPO}"
+              continue
+            fi
+
+            # Check current version in formula
+            if [ -f "$FORMULA" ]; then
+              CURRENT=$(grep -oP '(?<=version ")[^"]+' "$FORMULA" || echo "")
+              if [ "$CURRENT" = "$BARE_VERSION" ]; then
+                echo "SKIP: ${BINARY} already up to date (${BARE_VERSION})"
+                continue
+              fi
+            fi
+
+            echo "Updating ${BINARY} to ${BARE_VERSION}"
+
+            # Detect archive format: try tarball first, fall back to raw binary
+            TEST_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}_${BARE_VERSION}_linux_amd64.tar.gz"
+            if curl -fsSL --head "$TEST_URL" >/dev/null 2>&1; then
+              FORMAT="tarball"
+              EXT=".tar.gz"
+              STRATEGY="Using tarball archives"
+            else
+              FORMAT="binary"
+              EXT=""
+              STRATEGY="Using raw binaries"
+            fi
+            echo "${STRATEGY}"
+
+            # Download and compute sha256 for each platform
+            declare -A SHAS=()
+            FAILED=false
+            for pair in darwin-amd64 darwin-arm64 linux-amd64 linux-arm64; do
+              OS="${pair%-*}"
+              ARCH="${pair#*-}"
+              URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}_${BARE_VERSION}_${OS}_${ARCH}${EXT}"
+              SHA=$(curl -fsSL "$URL" 2>/dev/null | sha256sum | awk '{print $1}') || {
+                echo "SKIP: failed to download ${URL}"
+                FAILED=true
+                break
+              }
+              SHAS["${OS}_${ARCH}"]="$SHA"
+              echo "  ${OS}_${ARCH}: ${SHA}"
+            done
+
+            if [ "$FAILED" = true ]; then
+              continue
+            fi
+
+            # Generate install block based on format
+            if [ "$FORMAT" = "tarball" ]; then
+              INSTALL_BLOCK="bin.install \"${BINARY}\""
+            else
+              INSTALL_BLOCK="bin.install \"${BINARY}_${BARE_VERSION}_#{os}_#{arch}\" => \"${BINARY}\""
+            fi
+
+            # Build URL helper for formula
+            if [ "$FORMAT" = "tarball" ]; then
+              URL_TPL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}_${BARE_VERSION}"
+              MAC_ARM_URL="${URL_TPL}_darwin_arm64.tar.gz"
+              MAC_AMD_URL="${URL_TPL}_darwin_amd64.tar.gz"
+              LIN_ARM_URL="${URL_TPL}_linux_arm64.tar.gz"
+              LIN_AMD_URL="${URL_TPL}_linux_amd64.tar.gz"
+            else
+              URL_TPL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}_${BARE_VERSION}"
+              MAC_ARM_URL="${URL_TPL}_darwin_arm64"
+              MAC_AMD_URL="${URL_TPL}_darwin_amd64"
+              LIN_ARM_URL="${URL_TPL}_linux_arm64"
+              LIN_AMD_URL="${URL_TPL}_linux_amd64"
+            fi
+
+            cat > "$FORMULA" <<RUBY
+          class ${CLASS} < Formula
+            desc "${DESC}"
+            homepage "https://github.com/${REPO}"
+            version "${BARE_VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${MAC_ARM_URL}"
+                sha256 "${SHAS[darwin_arm64]}"
+              else
+                url "${MAC_AMD_URL}"
+                sha256 "${SHAS[darwin_amd64]}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${LIN_ARM_URL}"
+                sha256 "${SHAS[linux_arm64]}"
+              else
+                url "${LIN_AMD_URL}"
+                sha256 "${SHAS[linux_amd64]}"
+              end
+            end
+
+            def install
+              ${INSTALL_BLOCK}
+            end
+          end
+          RUBY
+            sed -i 's/^          //' "$FORMULA"
+
+            CHANGED=true
+            echo "OK: ${BINARY} updated to ${BARE_VERSION}"
+          done
+
+          echo "CHANGED=${CHANGED}" >> "$GITHUB_ENV"
+
+      - name: Commit and push
+        if: env.CHANGED == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Update formulas"
+          git push
