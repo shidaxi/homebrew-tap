@@ -25,6 +25,6 @@ class Iaws < Formula
   end
 
   def install
-    bin.install "iaws_1.3.0_#{os}_#{arch}" => "iaws"
+    bin.install Dir["*"].first => "iaws"
   end
 end
