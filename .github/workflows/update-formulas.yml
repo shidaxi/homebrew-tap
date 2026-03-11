@@ -95,7 +95,7 @@ jobs:
             if [ "$FORMAT" = "tarball" ]; then
               INSTALL_BLOCK="bin.install \"${BINARY}\""
             else
-              INSTALL_BLOCK="bin.install \"${BINARY}_${BARE_VERSION}_#{os}_#{arch}\" => \"${BINARY}\""
+              INSTALL_BLOCK="bin.install Dir[\"*\"].first => \"${BINARY}\""
             fi
 
             # Build URL helper for formula
