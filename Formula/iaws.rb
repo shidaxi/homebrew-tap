@@ -1,26 +1,26 @@
 class Iaws < Formula
   desc "Interactive AWS CLI dashboard"
   homepage "https://github.com/shidaxi/iaws"
-  version "1.4.0"
+  version "1.4.1"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/shidaxi/iaws/releases/download/v1.4.0/iaws_1.4.0_darwin_arm64"
-      sha256 "f7086956d09022ad5beddd4f63ca872ad8cf975e9a3791b2bb8f406f6c770c52"
+      url "https://github.com/shidaxi/iaws/releases/download/v1.4.1/iaws_1.4.1_darwin_arm64"
+      sha256 "4100707d55835f455bb274b7778a8628c44fd4a4b0c90098036a6bcbd15fb94f"
     else
-      url "https://github.com/shidaxi/iaws/releases/download/v1.4.0/iaws_1.4.0_darwin_amd64"
-      sha256 "fb43b0805d7580ff1e96c0473c51ff381bde1d77bb122222eb688b6902e4ccce"
+      url "https://github.com/shidaxi/iaws/releases/download/v1.4.1/iaws_1.4.1_darwin_amd64"
+      sha256 "d5b86d6e876f311565ab14b7f8e32506f5a9c7a4fd4a73c0b043b933c54851fd"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/shidaxi/iaws/releases/download/v1.4.0/iaws_1.4.0_linux_arm64"
-      sha256 "01558b22b86fee31a95c83e3f0606790d15ac8f251b375741e0eff2ee3c3f795"
+      url "https://github.com/shidaxi/iaws/releases/download/v1.4.1/iaws_1.4.1_linux_arm64"
+      sha256 "76fa4ec1d2a0f39803f9bdd020a0bf390863481b632d51b3ee2a9cd5d958b5d1"
     else
-      url "https://github.com/shidaxi/iaws/releases/download/v1.4.0/iaws_1.4.0_linux_amd64"
-      sha256 "7f5dfce5bd3d7c4d1d2a8eb6b113b757ce2f00feff22d1b4091fd2d9ba45fd95"
+      url "https://github.com/shidaxi/iaws/releases/download/v1.4.1/iaws_1.4.1_linux_amd64"
+      sha256 "cf481c0576ebff15714dc64623b62f97cee1a7f8f56e6e76701a7c2fae2ba865"
     end
   end
 
